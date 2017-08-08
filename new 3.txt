@@ -1,0 +1,95 @@
+CREATE PROCEDURE dbo.Web_SR_UpdateAdjustments 
+        @AdjustmentID INT = NULL
+        ,@Date DATETIME 
+        ,@Quantity INT = NULL
+        ,@AmountLCY INT = NULL
+        ,@CostLCY INT = NULL
+        ,@Comment NVARCHAR (MAX) = NULL
+		,@Period NVARCHAR(100) = NULL 
+		,@AdjustmentTypeName NVARCHAR(100) = NULL 
+		,@CountryName NVARCHAR(100) = NULL 
+		,@SubBusinessUnitName NVARCHAR(100) = NULL 
+		,@CompanyName NVARCHAR(100) = NULL 
+		,@SubSegmentName NVARCHAR(100) = NULL 
+		,@AccountSubTypeName NVARCHAR(100) = NULL
+		,@SubCategoryName NVARCHAR(100) = NULL
+AS   
+
+    SET NOCOUNT ON; 
+
+    DECLARE @PeriodID INT = NULL;
+    DECLARE @AdjustmentTypeID INT = NULL;
+    DECLARE @CountryID INT = NULL;
+    DECLARE @SubBusinessUnitID INT = NULL;
+    DECLARE @CompanyID INT = NULL;
+    DECLARE @SubSegmentID INT = NULL;
+    DECLARE @AccountSubTypeID INT = NULL;
+    DECLARE @SubCategoryID INT = NULL;
+
+    IF (@Period IS NOT NULL)
+    BEGIN 
+       SET @PeriodID = (SELECT TOP 1 [PeriodID] FROM [dbo].[Period] WHERE [Period] = @Period);
+    END
+
+    IF (@AdjustmentTypeName IS NOT NULL)
+    BEGIN 
+       SET @AdjustmentTypeID = (SELECT TOP 1 [AdjustmentTypeID] FROM [dbo].[AdjustmentType] WHERE [AdjustmentTypeName] = @AdjustmentTypeName);
+    END
+
+    IF (@CountryName IS NOT NULL)
+    BEGIN 
+       SET @CountryID = (SELECT TOP 1 [CountryID] FROM [dbo].[Country] WHERE [CountryName] = @CountryName);
+    END
+
+    IF (@SubBusinessUnitName IS NOT NULL)
+    BEGIN 
+       SET @SubBusinessUnitID = (SELECT TOP 1 [SubBusinessUnitID] FROM [dbo].[SubBusinessUnit] WHERE [SubBusinessUnitName] = @SubBusinessUnitName);
+    END
+
+    IF (@CompanyName IS NOT NULL)
+    BEGIN 
+       SET @CompanyID = (SELECT TOP 1 [CompanyID] FROM [dbo].[Company] WHERE [CompanyName] = @CompanyName);
+    END
+
+    IF (@SubSegmentName IS NOT NULL)
+    BEGIN 
+       SET @SubSegmentID = (SELECT TOP 1 [SubSegmentID] FROM [dbo].[SubSegment] WHERE [SubSegmentName] = @SubSegmentName);
+    END
+
+    IF (@AccountSubTypeName IS NOT NULL)
+    BEGIN 
+       SET @AccountSubTypeID = (SELECT TOP 1 [AccountSubTypeID] FROM [dbo].[AccountSubType] WHERE [AccountSubTypeName] = @AccountSubTypeName);
+    END
+
+    IF (@SubCategoryName IS NOT NULL)
+    BEGIN 
+       SET @SubCategoryID = (SELECT TOP 1 [SubCategoryID] FROM [dbo].[SubCategory] WHERE [SubCategoryName] = @SubCategoryName);
+    END
+
+select a.AdjustmentAmountLCY * d.SpotRate As AdjustmentAmountSpotUSD, a.AdjustmentCostLCY * d.SpotRate AS AdjustmentCostSpotUSD
+from Adjustment a
+left join Company b ON a.CompanyID = b.CompanyID
+left join Currency c ON b.CompanyLocalCurrency = c.CurrencyCode
+left join CurrencyRate d ON c.CurrencyCode = d.FromCurrencyCode 
+where YEAR(a.AdjustmentDate) = YEAR(d.CurrencyRateDate) AND MONTH(a.AdjustmentDate) = MONTH(d.CurrencyRateDate)
+
+
+
+
+    UPDATE [CSIDW].[dbo].[Adjustment] 
+    SET [AdjustmentDate] = @Date, 
+    [AdjustmentQuantity] = @Quantity,
+    [AdjustmentAmountLCY] = @AmountLCY,
+    [AdjustmentCostLCY] = @CostLCY,
+    [PeriodID] = @PeriodID,
+    [AdjustmentTypeID] = @AdjustmentTypeID,
+    [CountryID] = @CountryID,
+    [SubBusinessUnitID] = @SubBusinessUnitID,
+    [CompanyID] = @CompanyID,
+    [SubSegmentID] = @SubSegmentID,
+    [AccountSubTypeID] = @AccountSubTypeID,
+    [SubCategoryID] = @SubCategoryID,
+	UpdateDate=GETDATE()
+    WHERE [AdjustmentID] = @AdjustmentID
+
+GO;
