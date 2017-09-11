@@ -1,0 +1,227 @@
+USE [CSIDW]
+GO
+/****** Object:  StoredProcedure [dbo].[Web_SR_UpdateSubBusinessUnits]    Script Date: 9/11/2017 9:02:55 AM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+ALTER PROCEDURE [dbo].[Web_SR_UpdateSubBusinessUnits]
+     @SubBusinessUnitID INT = NULL
+	 ,@SubBusinessUnitCode INT = NULL
+	 ,@SubBusinessUnitName NVARCHAR(100) = NULL
+	,@EffectiveDate DATETIME
+	,@ExpirationDate DATETIME = NULL
+	,@CompanyName NVARCHAR(100) = NULL
+	,@SubBusinessUnitManagerName NVARCHAR(100) = NULL
+	,@BusinessUnitName NVARCHAR(100)=NULL
+	,@UpdateUser NVARCHAR(100) = NULL
+AS
+SET NOCOUNT ON;
+
+DECLARE @CompanyID INT = NULL;
+DECLARE @SubBusinessUnitManagerID  INT=NULL;
+DECLARE @BusinessUnitID INT=NULL;
+
+IF (@CompanyName IS NOT NULL)
+BEGIN
+	SET @CompanyID = (
+			SELECT TOP 1 [CompanyID]
+			FROM [dbo].[Company]
+			WHERE [CompanyName] = @CompanyName
+			);
+END
+
+IF (@BusinessUnitName IS NOT NULL)
+BEGIN
+	SET @BusinessUnitID = (
+			SELECT TOP 1 [BusinessUnitID]
+			FROM [dbo].[BusinessUnit]
+			WHERE [BusinessUnitName] = @BusinessUnitName
+			);
+END
+
+IF (@SubBusinessUnitManagerName IS NOT NULL)
+BEGIN
+	SET @SubBusinessUnitManagerID = (
+			SELECT TOP 1 [CompanyID]
+			FROM [dbo].[Company]
+			WHERE [CompanyName] = @CompanyName
+			);
+END
+
+IF EXISTS (SELECT [SubBusinessUnitCode] FROM [CSIDW].[dbo].[SubBusinessUnit] 
+WHERE LOWER([SubBusinessUnitCode]) = RTRIM(LTRIM(LOWER(@SubBusinessUnitCode))) AND [ExpirationDate] IS NULL
+ AND [SubBusinessUnitID] != @SubBusinessUnitID )
+BEGIN
+	SELECT 'Duplicate SubBusinessUnitCode'
+END
+ELSE 
+BEGIN
+IF EXISTS (SELECT [SubBusinessUnitName] FROM [CSIDW].[dbo].[SubBusinessUnit] 
+WHERE LOWER([SubBusinessUnitName]) = RTRIM(LTRIM(LOWER(@SubBusinessUnitName))) AND [ExpirationDate] IS NULL
+ AND [SubBusinessUnitID] != @SubBusinessUnitID )
+BEGIN
+	SELECT 'Duplicate SubBusinessUnitName'
+END
+ELSE 
+BEGIN 
+UPDATE [CSIDW].[dbo].[SubBusinessUnit]
+SET [EffectiveDate] = @EffectiveDate
+	,[BusinessUnitID] = @BusinessUnitID
+	,[SubBusinessUnitCode]=@SubBusinessUnitCode
+	,[SubBusinessUnitName]=@SubBusinessUnitName
+	,[ExpirationDate] = @ExpirationDate
+	,[SubBusinessUnitManagerID] = @SubBusinessUnitManagerID
+	,[CompanyID] = @CompanyID
+	,[UpdateUser] = @UpdateUser
+	,[UpdateDate] = GETDATE()
+WHERE [SubBusinessUnitID] = @SubBusinessUnitID
+
+	SELECT 'Success'
+END
+END
+
+
+
+
+-------------------
+
+
+
+USE [CSIDW]
+GO
+/****** Object:  StoredProcedure [dbo].[Web_SR_GetSubBusinessUnitRecords]    Script Date: 9/10/2017 12:32:42 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ALTER PROCEDURE [dbo].[Web_SR_GetSubBusinessUnitRecords]
+		@SubBusinessUnitManagerName nvarchar(100) = NULL
+		,@CompanyName nvarchar(100)=null
+		,@SubBusinessUnitName nvarchar(100)=null
+         ,@BusinessUnitName nvarchar(100)=NULL
+AS   
+
+    SET NOCOUNT ON; 
+
+	
+    SELECT SS.[SubBusinessUnitID]
+      ,SS.[SubBusinessUnitCode]
+      ,SS.[SubBusinessUnitName]
+      ,SS.[SubBusinessUnitManagerID]
+	  ,(SELECT TOP 1 [SalesRepFirstName]+ ' ' +[SalesRepLastName] FROM [SalesRep] SR
+		 INNER JOIN [CSIDW].[dbo].[SalesRepContact] SRC ON SRC.[SalesRepID] = SR.[SalesRepID] AND SRC.[ActiveRecord] = 'A' 
+		 INNER JOIN [CSIDW].[dbo].[SalesRepType] SRT ON SRT.[SalesRepTypeID] = SRC.[SalesRepTypeID] AND SRT.[SalesRepTypeCode] IN ('M', 'B')
+		 WHERE [SalesRepFirstName]+ ' ' +[SalesRepLastName] = ISNULL([SalesRepFirstName]+ ' ' +[SalesRepLastName],@SubBusinessUnitManagerName)
+		 AND SRC.[SubBusinessUnitID] = SS.[SubBusinessUnitID])
+		 AS [SubBusinessUnitManagerName]
+		 ,SS.[BusinessUnitID]
+		 ,BN.[BusinessUnitName]
+	  ,SSN.[CompanyName]
+	  ,SS.[CompanyID]
+      ,SS.[EffectiveDate]
+      ,SS.[ExpirationDate]
+      ,SS.[UpdateUser]
+      ,SS.[UpdateDate]      	  
+  FROM [CSIDW].[dbo].[SubBusinessUnit] SS
+  INNER JOIN [CSIDW].[dbo].[Company] SSN ON SSN.[CompanyID] = SS.[CompanyID] 
+  INNER JOIN [CSIDW].[dbo].[BusinessUnit] BN ON BN.[BusinessUnitID]=ss.[BusinessUnitID]
+  WHERE  SSN.[CompanyName] = ISNULL(@CompanyName, SSN.[CompanyName])
+         AND  BN.[BusinessUnitName]=ISNULL(@BusinessUnitName, BN.[BusinessUnitName]);
+
+
+
+
+
+
+-------------------------------
+
+USE [CSIDW]
+GO
+/****** Object:  StoredProcedure [dbo].[Web_SR_AddNewSubBusinessUnit]    Script Date: 9/11/2017 9:05:15 AM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+ALTER PROCEDURE [dbo].[Web_SR_AddNewSubBusinessUnit] 
+	 @SubBusinessUnitCode INT = NULL
+	 ,@SubBusinessUnitName NVARCHAR(100) = NULL
+	 ,@CompanyName NVARCHAR(100) = NULL
+	 ,@BusinessUnitName NVARCHAR(100)=NULL
+	,@SubBusinessUnitManager NVARCHAR(100) = NULL
+	,@EffectiveDate DATETIME
+AS
+SET NOCOUNT ON;
+DECLARE @BusinessUnitID INT =NULL;
+DECLARE @CompanyID INT = NULL;
+DECLARE @SubBusinessUnitManagerID  INT=NULL;
+DECLARE @SubBusinessUnitID INT=NULL;
+
+IF (@CompanyName IS NOT NULL)
+BEGIN
+	SET @CompanyID = (
+			SELECT TOP 1 [CompanyID]
+			FROM [dbo].[Company]
+			WHERE [CompanyName] = @CompanyName
+			);
+END
+
+IF (@BusinessUnitName IS NOT NULL)
+BEGIN
+	SET @BusinessUnitID = (
+			SELECT TOP 1 [BusinessUnitID]
+			FROM [dbo].[BusinessUnit]
+			WHERE [BusinessUnitName] = @BusinessUnitName
+			);
+END
+
+IF (@SubBusinessUnitManager IS NOT NULL)
+BEGIN
+	SET @SubBusinessUnitManagerID = (
+			SELECT TOP 1 [CompanyID]
+			FROM [dbo].[Company]
+			WHERE [CompanyName] = @CompanyName
+			);
+END
+
+IF EXISTS (SELECT [SubBusinessUnitCode] FROM [CSIDW].[dbo].[SubBusinessUnit] 
+WHERE LOWER([SubBusinessUnitCode]) = RTRIM(LTRIM(LOWER(@SubBusinessUnitCode))) AND [ExpirationDate] IS NULL
+ AND [SubBusinessUnitID] != @SubBusinessUnitID )
+BEGIN
+	SELECT 'Duplicate SubBusinessUnitCode'
+END
+ELSE 
+BEGIN
+IF EXISTS (SELECT [SubBusinessUnitName] FROM [CSIDW].[dbo].[SubBusinessUnit] 
+WHERE LOWER([SubBusinessUnitName]) = RTRIM(LTRIM(LOWER(@SubBusinessUnitName))) AND [ExpirationDate] IS NULL
+ AND [SubBusinessUnitID] != @SubBusinessUnitID )
+BEGIN
+	SELECT 'Duplicate SubBusinessUnitName'
+END
+ELSE 
+BEGIN 
+INSERT INTO [CSIDW].[dbo].[SubBusinessUnit] (
+	   [SubBusinessUnitCode]
+      ,[SubBusinessUnitName]
+	  ,[SubBusinessUnitManagerID]
+	  ,[BusinessUnitID]
+	  ,[CompanyID]
+      ,[EffectiveDate]
+	)
+VALUES (
+	@SubBusinessUnitCode
+	,@SubBusinessUnitName
+	,@SubBusinessUnitManagerID
+	,@BusinessUnitID
+	,@CompanyID
+	,@EffectiveDate
+	);
+
+	SELECT 'Success'
+END
+END
+
+
