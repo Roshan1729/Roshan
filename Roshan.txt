@@ -1,4 +1,243 @@
 USE [CSIDW]
+
+GO
+
+/****** Object:  StoredProcedure [dbo].[Web_SR_UpdateAdjustmentTemplate]    Script Date: 9/13/2017 9:39:39 AM ******/
+
+SET ANSI_NULLS ON
+
+GO
+
+SET QUOTED_IDENTIFIER ON
+
+GO
+
+ALTER PROCEDURE [dbo].[Web_SR_UpdateAdjustmentTemplate]
+
+     @AdjustmentTemplateID INT = NULL
+
+	,@AdjustmentQuantity FLOAT(53) = NULL
+
+	,@AdjustmentAmount MONEY = NULL
+
+	,@AdjustmentCost MONEY = NULL
+
+	,@UpdateUser NVARCHAR(100) = NULL
+
+AS
+
+SET NOCOUNT ON;
+
+
+DECLARE @AdjustmentAmountSpotUSD MONEY = NULL;
+
+DECLARE @AdjustmentCostSpotUSD MONEY = NULL;
+
+DECLARE @AdjustmentAmountAvgUSD MONEY = NULL;
+
+DECLARE @AdjustmentCostAvgUSD MONEY = NULL;
+
+DECLARE @AdjustmentID INT;
+
+DECLARE @CurrencyID INT;
+
+DECLARE @CompanyID INT;
+
+DECLARE @PeriodID INT;
+
+
+SET @PeriodID = (select month(getdate()) + 2);
+
+
+IF @PeriodID > 12 
+
+BEGIN
+
+SET @PeriodID =  @PeriodID - 12;
+
+END
+
+
+INSERT INTO [CSIDW].[dbo].[Adjustment] (
+
+	[AdjustmentDate]
+
+	,[PeriodID]
+
+	,[AdjustmentQuantity]
+
+	,[AdjustmentAmountLCY]
+
+	,[AdjustmentCostLCY]
+
+	,[AdjustmentTypeID]
+
+	,[CountryID]
+
+	,[SubBusinessUnitID]
+
+	,[CompanyID]
+
+	,[SubSegmentID]
+
+	,[AccountSubTypeID]
+
+	,[SubCategoryID]
+
+	,[UpdateUser]
+
+	,[UpdateDate]
+
+	)
+
+SELECT GETDATE(), @PeriodID
+
+	  ,@AdjustmentQuantity
+
+	  ,@AdjustmentAmount
+
+      ,@AdjustmentCost
+
+      ,[AdjustmentTypeID]
+
+      ,[CountryID]
+
+      ,[SubBusinessUnitID]
+
+      ,[CompanyID]
+
+      ,[SubSegmentID]
+
+      ,[AccountSubTypeID]
+
+      ,[SubCategoryID]
+
+      ,[UpdateUser]
+
+	  ,GETDATE()
+
+  FROM [CSIDW].[dbo].[AdjustmentTemplate]
+
+  WHERE [AdjustmentTemplateID] = @AdjustmentTemplateID;
+
+
+SET @AdjustmentID = SCOPE_IDENTITY();
+
+
+SET @CompanyID = (SELECT CompanyID FROM [CSIDW].[dbo].[AdjustmentTemplate]
+
+  WHERE [AdjustmentTemplateID] = @AdjustmentTemplateID);
+
+
+SET @CurrencyID = (SELECT TOP 1 CurrencyID FROM Currency WHERE CurrencyCode = (SELECT CurrencyCode FROM Company WHERE CompanyID = @CompanyID) );
+
+
+SET @AdjustmentAmountSpotUSD = (
+
+		SELECT TOP 1 a.AdjustmentAmountLCY * d.SpotRate
+
+		FROM Adjustment a
+
+		LEFT JOIN Company b ON a.CompanyID = b.CompanyID
+
+		LEFT JOIN Currency c ON b.CompanyLocalCurrency = c.CurrencyCode
+
+		LEFT JOIN CurrencyRate d ON c.CurrencyCode = d.FromCurrencyCode
+
+		WHERE YEAR(a.AdjustmentDate) = YEAR(d.CurrencyRateDate)
+
+			AND MONTH(a.AdjustmentDate) = MONTH(d.CurrencyRateDate)
+
+			AND a.[AdjustmentID] = @AdjustmentID
+
+		);
+
+SET @AdjustmentCostSpotUSD = (
+
+		SELECT TOP 1 a.AdjustmentCostLCY * d.SpotRate
+
+		FROM Adjustment a
+
+		LEFT JOIN Company b ON a.CompanyID = b.CompanyID
+
+		LEFT JOIN Currency c ON b.CompanyLocalCurrency = c.CurrencyCode
+
+		LEFT JOIN CurrencyRate d ON c.CurrencyCode = d.FromCurrencyCode
+
+		WHERE YEAR(a.AdjustmentDate) = YEAR(d.CurrencyRateDate)
+
+			AND MONTH(a.AdjustmentDate) = MONTH(d.CurrencyRateDate)
+
+			AND a.[AdjustmentID] = @AdjustmentID
+
+		);
+
+SET @AdjustmentAmountAvgUSD = (
+
+		SELECT TOP 1 a.AdjustmentAmountLCY * d.AverageRate
+
+		FROM Adjustment a
+
+		LEFT JOIN Company b ON a.CompanyID = b.CompanyID
+
+		LEFT JOIN Currency c ON b.CompanyLocalCurrency = c.CurrencyCode
+
+		LEFT JOIN CurrencyRate d ON c.CurrencyCode = d.FromCurrencyCode
+
+		WHERE YEAR(a.AdjustmentDate) = YEAR(d.CurrencyRateDate)
+
+			AND MONTH(a.AdjustmentDate) = MONTH(d.CurrencyRateDate)
+
+			AND a.[AdjustmentID] = @AdjustmentID
+
+		);
+
+SET @AdjustmentCostAvgUSD = (
+
+		SELECT TOP 1 a.AdjustmentCostLCY * d.AverageRate
+
+		FROM Adjustment a
+
+		LEFT JOIN Company b ON a.CompanyID = b.CompanyID
+
+		LEFT JOIN Currency c ON b.CompanyLocalCurrency = c.CurrencyCode
+
+		LEFT JOIN CurrencyRate d ON c.CurrencyCode = d.FromCurrencyCode
+
+		WHERE YEAR(a.AdjustmentDate) = YEAR(d.CurrencyRateDate)
+
+			AND MONTH(a.AdjustmentDate) = MONTH(d.CurrencyRateDate)
+
+			AND a.[AdjustmentID] = @AdjustmentID
+
+		);
+
+UPDATE [CSIDW].[dbo].[Adjustment]
+
+SET [AdjustmentAmountSpotUSD] = @AdjustmentAmountSpotUSD
+
+	,[AdjustmentCostSpotUSD] = @AdjustmentCostSpotUSD
+
+	,[AdjustmentAmountAvgUSD] = @AdjustmentAmountAvgUSD
+
+	,[AdjustmentCostAvgUSD] = @AdjustmentCostAvgUSD
+
+	,[CurrencyID] = @CurrencyID
+
+WHERE [AdjustmentID] = @AdjustmentID;
+
+
+　
+
+DELETE FROM [CSIDW].[dbo].[AdjustmentTemplate]
+
+  WHERE [AdjustmentTemplateID] = @AdjustmentTemplateID;
+
+
+　
+
+---------------------------------------------
+USE [CSIDW]
 GO
 /****** Object:  StoredProcedure [dbo].[Web_SR_UpdateSubBusinessUnits]    Script Date: 9/11/2017 9:02:55 AM ******/
 SET ANSI_NULLS ON
